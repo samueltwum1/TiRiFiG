@@ -1,3 +1,16 @@
+#!/usr/bin/env python
+#########################################################################################
+# Author: Samuel (samueltwum1@gmail.com) with MSc supervisors                           #
+# Copyright 2018 Samuel N. Twum                                                         #
+#                                                                                       #
+# MIT license - see LICENSE.txt for details                                             #
+#########################################################################################
+
+"""
+window to update the plotting range for x and y axis for graph widget
+
+"""
+
 from PyQt5 import QtCore, QtWidgets
 
 
@@ -105,4 +118,5 @@ class ScaleManager(QtWidgets.QWidget):
             gw.x_scale = [self.x_min, self.x_max]
             gw.first_plot()
         self.close()
+        self.logger.debug("Scale successfully upgraded.")
         QtWidgets.QMessageBox.information(self, "Information", "Done!")

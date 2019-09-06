@@ -7,7 +7,7 @@
 #########################################################################################
 
 """
-main  : gets the whole thing started
+main : gets the whole thing started
 
 """
 
@@ -28,10 +28,13 @@ def main():
 
     logger.addHandler(file_handler)
 
+    logger.info("Log handling set up")
+
     if os.path.isfile(os.getcwd() + "/tmpDeffile.def"):
         os.remove(os.getcwd() + "/tmpDeffile.def")
 
     app = QtWidgets.QApplication(sys.argv)
+    logger.info("Starting the GUI")
     GUI = MainWindow(logger)
     GUI.show()
 

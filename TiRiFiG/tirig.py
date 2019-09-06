@@ -14,7 +14,7 @@ http://gigjozsa.github.io/tirific/
 
 """
 
-import os, subprocess, time
+import os, subprocess, time, tempfile
 from decimal import Decimal
 from math import ceil
 from subprocess import Popen as run
@@ -37,19 +37,19 @@ curr_par = None
 # determines whether a graph widget is being inserted or added
 selected_option = None
 # a list of tilted ring parameters and the respective units
-fit_par = {'VROT':'km s-1',
-           'SBR':'Jy km s-1 arcsec-2',
-           'INCL':'degrees',
-           'PA':'degrees',
-           'RADI':'arcsec', 
-           'Z0':'arcsec',
-           'SDIS':'km s-1',
-           'XPOS':'degrees',
-           'YPOS':'degrees',
-           'VSYS':'km s-1',
-           'DVRO':'km s-1 arcsec-1',
-           'DVRA':'km s-1 arcsec-1',
-           'VRAD':'km s-1'}
+fit_par = {"VROT":"km s-1",
+           "SBR":"Jy km s-1 arcsec-2",
+           "INCL":"degrees",
+           "PA":"degrees",
+           "RADI":"arcsec", 
+           "Z0":"arcsec",
+           "SDIS":"km s-1",
+           "XPOS":"degrees",
+           "YPOS":"degrees",
+           "VSYS":"km s-1",
+           "DVRO":"km s-1 arcsec-1",
+           "DVRA":"km s-1 arcsec-1",
+           "VRAD":"km s-1"}
 
 def _center(self):
     """Centers the window
@@ -78,17 +78,18 @@ def _center(self):
 
 class TimerThread(Thread):
     """starts a thread and stops when the program closes"""
-    def __init__(self, event, func, prog_pid):
+    def __init__(self, event, func, prog_pid, tmp_file):
         super(TimerThread, self).__init__(name="TimerThread")
         self.stopped = event
         self.func = func
         self.prog_pid = str(prog_pid)
+        self.tmp_file = tmp_file
 
     def run(self):
         wait_period = 1 # time in seconds
         while not self.stopped.wait(wait_period):
-            proc1 = run(['ps', 'ax'], stdout=subprocess.PIPE)
-            proc2 = run(['grep', self.prog_pid], stdin=proc1.stdout,
+            proc1 = run(["ps", "ax"], stdout=subprocess.PIPE)
+            proc2 = run(["grep", self.prog_pid], stdin=proc1.stdout,
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out = proc2.communicate()[0].split()
             # stop thread if program is no longer running
@@ -96,6 +97,8 @@ class TimerThread(Thread):
                 self.func()
             else:
                 self.stopped.set()
+                self.tmp_file.close() # the temp file will be deleted
+                self.logger.debug("Sync between graph and text file stopped")
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -105,7 +108,7 @@ class MainWindow(QtWidgets.QMainWindow):
     n_cols = 1; n_rows = 4
     INSET = "None"
     par = ["VROT", "SBR", "INCL", "PA"]
-    tmp_def_file = os.getcwd() + "/tmpDeffile.def"
+    tmp_def_file = tempfile.NamedTemporaryFile()
     progress_path = ""
     file_name = ""
     graph_widgets = []
@@ -125,8 +128,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self, logger):
         super(MainWindow, self).__init__()
-        self.init_ui()
         self.logger = logger
+        self.init_ui()
+        self.logger.info("Window initialisation completed without errors")
 
 
     def init_ui(self):
@@ -161,48 +165,48 @@ class MainWindow(QtWidgets.QMainWindow):
     def create_actions(self):
         self.exit_action = QtWidgets.QAction("&Exit", self)
         self.exit_action.setShortcut("Ctrl+Q")
-        self.exit_action.setStatusTip('Leave the app')
+        self.exit_action.setStatusTip("Leave the app")
         self.exit_action.triggered.connect(self.quit_app)
 
         self.open_file = QtWidgets.QAction("&Open File", self)
         self.open_file.setShortcut("Ctrl+O")
-        self.open_file.setStatusTip('Load .def file to be plotted')
+        self.open_file.setStatusTip("Load .def file to be plotted")
         self.open_file.triggered.connect(self.open_def)
 
         self.save_changes = QtWidgets.QAction("&Save", self)
-        self.save_changes.setStatusTip('Save changes to .def file')
+        self.save_changes.setStatusTip("Save changes to .def file")
         self.save_changes.triggered.connect(self.save_all)
 
         self.save_as = QtWidgets.QAction("&Save as...", self)
-        self.save_as.setStatusTip('Create another .def file with current '
-                                     'paramater values')
+        self.save_as.setStatusTip("Create another .def file with current "
+                                  "paramater values")
         self.save_as.triggered.connect(self.save_as_all)
 
         self.undo_action = QtWidgets.QAction("&Undo", self)
         self.undo_action.setShortcut("Ctrl+Z")
-        self.undo_action.setStatusTip('Undo last action')
+        self.undo_action.setStatusTip("Undo last action")
         self.undo_action.triggered.connect(self.undo_command)
 
         self.redo_action = QtWidgets.QAction("&Redo", self)
         self.redo_action.setShortcut("Ctrl+Y")
-        self.redo_action.setStatusTip('Redo last action')
+        self.redo_action.setStatusTip("Redo last action")
         self.redo_action.triggered.connect(self.redo_command)
 
         self.open_text_editor = QtWidgets.QAction("&Open Text Editor...", self)
-        self.open_text_editor.setStatusTip('View the current open .def file in '
-                                         'preferred text editor')
+        self.open_text_editor.setStatusTip("View the current open .def file in "
+                                           "preferred text editor")
         self.open_text_editor.triggered.connect(self.open_editor)
 
         self.start_tirific = QtWidgets.QAction("&Start TiriFiC", self)
-        self.start_tirific.setStatusTip('Starts TiRiFiC from terminal')
+        self.start_tirific.setStatusTip("Starts TiRiFiC from terminal")
         self.start_tirific.triggered.connect(self.run_tirific)
 
         self.win_spec = QtWidgets.QAction("&Window Specification", self)
-        self.win_spec.setStatusTip('Determines the number of rows and columns in a plot')
+        self.win_spec.setStatusTip("Determines the number of rows and columns in a plot")
         self.win_spec.triggered.connect(self.set_row_col)
 
         self.scale_man = QtWidgets.QAction("&Scale Manager", self)
-        self.scale_man.setStatusTip('Manages behaviour of scale and min and max values')
+        self.scale_man.setStatusTip("Manages behaviour of scale and min and max values")
         self.scale_man.triggered.connect(self.create_scale_manager)
 
         self.para_def = QtWidgets.QAction("&Parameter Definition", self)
@@ -212,7 +216,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def create_menus(self):
         main_menu = self.menuBar()
 
-        self.file_menu = main_menu.addMenu('&File')
+        self.file_menu = main_menu.addMenu("&File")
         self.file_menu.addAction(self.open_file)
         self.file_menu.addAction(self.undo_action)
         self.file_menu.addAction(self.redo_action)
@@ -220,13 +224,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.file_menu.addAction(self.save_as)
         self.file_menu.addAction(self.exit_action)
 
-        # edit_menu = main_menu.addMenu('&Edit')
+        # edit_menu = main_menu.addMenu("&Edit")
 
-        self.run_menu = main_menu.addMenu('&Run')
+        self.run_menu = main_menu.addMenu("&Run")
         self.run_menu.addAction(self.open_text_editor)
         self.run_menu.addAction(self.start_tirific)
 
-        self.pref_menu = main_menu.addMenu('&Preferences')
+        self.pref_menu = main_menu.addMenu("&Preferences")
         self.pref_menu.addAction(self.scale_man)
         self.pref_menu.addAction(self.para_def)
         self.pref_menu.addAction(self.win_spec)
@@ -288,19 +292,17 @@ class MainWindow(QtWidgets.QMainWindow):
             with open(self.file_name) as f:
                 data = f.readlines()
         except:
-            if self.file_name == '':
-                pass
-            else:
-                QtWidgets.QMessageBox.information(self, "Information",
-                                                  "Empty/Invalid file specified")
-            return None
+            self.logger.debug("Error reading selected paramater file: {}".format(self.file_name))
+            QtWidgets.QMessageBox.information(self, "Information",
+                                              "Empty/Invalid file specified")
+            return
         else:
             return data
 
     def str_type(self, var):
         """Determines the data type of a variable
 
-        Parameters
+        ParametersError reading selected paramater file
         ----------
         var : int|float|string
             variable holding the values
@@ -313,13 +315,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # why are you putting this in a try-except block
         try:
             if int(var) == float(var):
-                return 'int'
+                return "int"
         except:
             try:
                 float(var)
-                return 'float'
+                return "float"
             except:
-                return 'str'
+                return "str"
 
     def num_precision(self, data):
         """Determines the highest floating point precision of data points
@@ -342,7 +344,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # check val has decimal & fractional part and append 
             # length of numbers of fractional part
             if len(val) == 2:
-                dec_points.append(len(val[1].split('E')[0]))
+                dec_points.append(len(val[1].split("E")[0]))
 
         # assign greatest precision in dec_points to class variables handling precision
         if len(dec_points) == 0:
@@ -376,7 +378,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for i in data:
             line_vals = i.split("=")
             if len(line_vals) > 1:
-                line_vals[0] = ''.join(line_vals[0].split())
+                line_vals[0] = "".join(line_vals[0].split())
                 if line_vals[0].upper() == "NUR":
                     par_vals = line_vals[1].split()
                     self.NUR = int(par_vals[0])
@@ -385,7 +387,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for each_line in data:
             line_vals = each_line.split("=")
             if len(line_vals) > 1:
-                line_vals[0] = ''.join(line_vals[0].split())
+                line_vals[0] = "".join(line_vals[0].split())
                 par_vals = line_vals[1].split()
 
                 if line_vals[0].upper() == "INSET":
@@ -393,12 +395,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 elif line_vals[0].upper() == "LOOPS":
                     self.loops = int(par_vals[0])
                 else:
-                    if (len(par_vals) > 0 and not self.str_type(par_vals[0]) == 'str' and
-                            not self.str_type(par_vals[-1]) == 'str' and
-                            not self.str_type(par_vals[len(par_vals) / 2]) == 'str'):
+                    if (len(par_vals) > 0 and not self.str_type(par_vals[0]) == "str" and
+                            not self.str_type(par_vals[-1]) == "str" and
+                            not self.str_type(par_vals[len(par_vals) / 2]) == "str"):
                         if (len(par_vals) == self.NUR or line_vals[0].upper() in
                                 fit_par.keys()):
-                            if line_vals[0].upper() == 'RADI':
+                            if line_vals[0].upper() == "RADI":
                                 self.x_precision = self.num_precision(par_vals[:])
                             else:
                                 self.y_precision[str.upper(line_vals[0])] = (
@@ -406,6 +408,7 @@ class MainWindow(QtWidgets.QMainWindow):
                             for idx, each_value in enumerate(par_vals):
                                 par_vals[idx] = float(Decimal(each_value))
                             self.par_vals[str.upper(line_vals[0])] = par_vals[:]
+        self.logger.info("Parameter values have been retrieved and ready for plotting")
 
     def open_def(self):
         """Opens data, gets parameter values, sets precision and sets scale
@@ -421,13 +424,10 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             self.get_parameter_values(data)
         except:
-            if data is None:
-                pass
-            else:
-                QtWidgets.QMessageBox.information(self, "Information",
-                                                  "Tilted-ring parameters not retrieved")
-                logger.info("The tilted-ring parameters could not be retrieved from the {}"
-                            .format(self.file_name))
+            self.logger.debug("The tilted-ring parameters could not be retrieved from the {}"
+                             .format(self.file_name))
+            QtWidgets.QMessageBox.information(self, "Information",
+                                              "Tilted-ring parameters not retrieved")
         else:
             self.data = data
             if self.run_count > 0:
@@ -443,10 +443,10 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 # defining the x scale for plotting
                 # this is the min/max + 10% of the difference between the min and max
-                min_max_diff = max(self.par_vals['RADI']) - min(self.par_vals['RADI'])
+                min_max_diff = max(self.par_vals["RADI"]) - min(self.par_vals["RADI"])
                 percentage_of_min_max_diff = 0.1 * min_max_diff
-                lower_bound = min(self.par_vals['RADI']) - percentage_of_min_max_diff
-                upper_bound = max(self.par_vals['RADI']) + percentage_of_min_max_diff
+                lower_bound = min(self.par_vals["RADI"]) - percentage_of_min_max_diff
+                upper_bound = max(self.par_vals["RADI"]) + percentage_of_min_max_diff
                 self.x_scale = [int(ceil(lower_bound)), int(ceil(upper_bound))]
                 
                 self.scroll_width = self.scroll_area_content.width()
@@ -460,7 +460,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 # specified in NUR parameter
                 for key, val in self.par_vals.items():
                     diff = self.NUR - len(val)
-                    if key == 'RADI': #use this implementation in other diff checkers
+                    if key == "RADI": #use this implementation in other diff checkers
                         if diff == self.NUR:
                             for j in np.arange(0.0, (int(diff) * 40.0), 40):
                                 self.par_vals[key].append(j)
@@ -482,7 +482,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     min_max_diff = max(self.par_vals[key]) - min(self.par_vals[key])
                     percentage_of_min_max_diff = 0.1 * min_max_diff
                     lower_bound = min(self.par_vals[key]) - percentage_of_min_max_diff
-                    upper_bound = max(self.par_vals[key]) + percentage_of_min_max_diff
+                    upper_bound = max(self.par_vals[key]) + perc[entage_of_min_max_diff
                     # are the min/max values the same
                     if np.subtract(max(self.par_vals[key]), min(self.par_vals[key])) == 0:
                         self.y_scale[key] = [lower_bound/2, upper_bound*1.5]
@@ -494,7 +494,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                       self.y_scale[key][:],
                                                       unit, key,
                                                       self.par_vals[key][:],
-                                                      self.par_vals['RADI'][:],
+                                                      self.par_vals["RADI"][:],
                                                       self.history_list[key][:],
                                                       self.key, self.x_precision,
                                                       self.y_precision[key],
@@ -503,10 +503,10 @@ class MainWindow(QtWidgets.QMainWindow):
                         self.graph_widgets[-1].change_global)
                     self.graph_widgets[-1].btn_add_param.clicked.connect(
                         self.insert_parameter_dialog)
-                    self.graph_widgets[-1].btn_edit_param.clicked.connect(
+                    self.graph_widgets[-1].btn_change_param.clicked.connect(
                         self.graph_widgets[-1].change_global)
-                    self.graph_widgets[-1].btn_edit_param.clicked.connect(
-                        self.edit_parameter_dialog)
+                    self.graph_widgets[-1].btn_change_param.clicked.connect(
+                        self.change_parameter_dialog)
                     # TODO we should also probably set the minimum size for the scroll layout
                     self.graph_widgets[-1].setMinimumSize(self.scroll_width/2, self.scroll_height/2)
                     if key in self.par:
@@ -519,6 +519,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.scroll_grid_layout.addWidget(graph_widget, idx, 0)
                 del g_w_to_plot, ordered_dict_items
                 self.run_count += 1
+                self.logger.debug("The tilted-ring parameters retrieved from successfully")
 
     def undo_command(self):
         global curr_par
@@ -590,6 +591,8 @@ class MainWindow(QtWidgets.QMainWindow):
                             counter += 1
                     del sorted_g_w_to_plot
                 else:
+                    self.logger.debug("Product of rows and columns did not match the "
+                                      "currently plotted parameters")
                     QtWidgets.QMessageBox.information(self, "Information",
                                                       "Product of rows and columns should"
                                                       " match the current number of parameters"
@@ -617,19 +620,19 @@ class MainWindow(QtWidgets.QMainWindow):
         # get the new values and format it as e.g. [0 20 30 40 50...]
         txt = ""
         for val in new_vals:
-            if search_key == 'RADI':
+            if search_key == "RADI":
                 txt = txt+" " +'{0:.{1}E}'.format(val, x_precision)
             else:
                 txt = txt+" " +'{0:.{1}E}'.format(val, y_precision)
 
         # FIXME (11-06-2018) put this block of code in a try except block
         tmp_file = []
-        with open(self.file_name, 'a') as f:
+        with open(self.file_name, "a") as f:
             status = False
             for each_line in self.data:
                 line_vals = each_line.split("=")
                 if len(line_vals) > 1:
-                    line_vals[0] = ''.join(line_vals[0].split())
+                    line_vals[0] = "".join(line_vals[0].split())
                     if search_key == line_vals[0]:
                         txt = "    "+search_key+"="+txt+"\n"
                         tmp_file.append(txt)
@@ -657,6 +660,8 @@ class MainWindow(QtWidgets.QMainWindow):
         for gw in self.graph_widgets:
             self.save_file(gw.par_vals, gw.par, gw.unit_meas, gw.x_precision, gw.y_precision)
 
+        self.logger.info("Changes saved successfully to current file")
+
         QtWidgets.QMessageBox.information(self, "Information",
                                           "Changes successfully written to file")
 
@@ -679,20 +684,20 @@ class MainWindow(QtWidgets.QMainWindow):
         # get the new values and format it as [0 20 30 40 50...]
         txt = ""
         for val in new_vals:
-            if search_key == 'RADI':
-                txt = txt+" " +'{0:.{1}E}'.format(val, x_precision)
+            if search_key == "RADI":
+                txt = txt+" " +"{0:.{1}E}".format(val, x_precision)
             else:
-                txt = txt+" " +'{0:.{1}E}'.format(val, y_precision)
+                txt = txt+" " +"{0:.{1}E}".format(val, y_precision)
 
         tmp_file = []
 
         if file_name:
-            with open(file_name, 'a') as f:
+            with open(file_name, "a") as f:
                 status = False
                 for each_line in self.data:
                     line_vals = each_line.split("=")
                     if len(line_vals) > 1:
-                        line_vals[0] = ''.join(line_vals[0].split())
+                        line_vals[0] = "".join(line_vals[0].split())
                         if search_key == line_vals[0]:
                             txt = "    "+search_key+"="+txt+"\n"
                             tmp_file.append(txt)
@@ -725,6 +730,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.save_as(file_name, gw.par_vals, gw.par, gw.unit_meas, gw.x_precision,
                          gw.y_precision)
 
+        self.logger.info("Changes saved successfully to new file")
+
         QtWidgets.QMessageBox.information(self, "Information", "File Successfully Saved")
 
     def change_data(self, file_name):
@@ -738,7 +745,7 @@ class MainWindow(QtWidgets.QMainWindow):
             for gw in self.graph_widgets:
                 if gw.par == trp:
                     gw.par_vals = self.par_vals[trp][:]
-                    gw.par_val_radi = self.par_vals['RADI'][:]
+                    gw.par_val_radi = self.par_vals["RADI"][:]
 
         # FIXME(Samuel 11-06-2018):
         # the comments below will probably be important to keep/implement
@@ -761,11 +768,11 @@ class MainWindow(QtWidgets.QMainWindow):
             gw.first_plot()
 
     def animate(self):
-        if os.path.isfile(self.tmp_def_file):
-            after = os.stat(self.tmp_def_file).st_mtime
+        if os.path.isfile(self.tmp_def_file.name):
+            after = os.stat(self.tmp_def_file.name).st_mtime
             if self.before != after:
                 self.before = after
-                self.change_data(self.tmp_def_file)
+                self.change_data(self.tmp_def_file.name)
 
     def open_editor(self):
         text, ok = QtWidgets.QInputDialog.getText(self, "Text Editor Input Dialog",
@@ -773,14 +780,15 @@ class MainWindow(QtWidgets.QMainWindow):
         if ok:
 
             for gw in self.graph_widgets:
-                self.save_as(self.tmp_def_file, gw.par_vals, gw.par, gw.unit_meas,
+                self.save_as(self.tmp_def_file.name, gw.par_vals, gw.par, gw.unit_meas,
                              gw.x_precision, gw.y_precision)
 
             if text:
                 program_name = str(text)
                 try:
-                    prog_pid = run([program_name, self.tmp_def_file]).pid
+                    prog_pid = run([program_name, self.tmp_def_file.name]).pid
                 except OSError:
+                    self.logger.debug("{} is not installed or configured.".format(program_name))
                     QtWidgets.QMessageBox.information(self, "Information",
                                                       "{} is not installed or configured"
                                                       " properly on this system.".format(program_name))
@@ -788,10 +796,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     QtWidgets.QMessageBox.information(self, "Information",
                                                       "To see change in graph, save changes to the file")
                     # assign current modified time of temporary def file to before
-                    self.before = os.stat(self.tmp_def_file).st_mtime
+                    self.before = os.stat(self.tmp_def_file.name).st_mtime
                     stop_event = Event()
-                    timer_thread = TimerThread(stop_event, self.animate, prog_pid)
+                    timer_thread = TimerThread(stop_event, self.animate, prog_pid, self.tmp_def_file)
                     timer_thread.start()
+                    self.logger.debug("Sync between graph and text file started")
 
     def create_scale_manager(self):
         self.sm = ScaleManager(self.x_scale, self.graph_widgets, self.logger)
@@ -808,14 +817,14 @@ class MainWindow(QtWidgets.QMainWindow):
             # if no tilted ring parameter has focus then the graph of the new tilted ring
             # parameter will be placed in the last position
             if curr_par:
-                if selected_option == 'insert':
+                if selected_option == "insert":
                     par_index = self.par.index(curr_par)
                     par_index += 1
                 else:
                     raise ValueError ("Expecting an insert option but got {}".
                                       format(selected_option))
             else:
-                if selected_option == 'append':
+                if selected_option == "append":
                     par_index = len(self.par)
                 else:
                     raise ValueError("Expecting an append option but got {}".
@@ -849,7 +858,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                       unit_meas,
                                                       tilted_ring_par,
                                                       self.par_vals[tilted_ring_par],
-                                                      self.par_vals['RADI'],
+                                                      self.par_vals["RADI"],
                                                       self.history_list[tilted_ring_par],
                                                       "Yes",
                                                       self.x_precision,
@@ -861,10 +870,10 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.graph_widgets[par_index].change_global)
                 self.graph_widgets[par_index].btn_add_param.clicked.connect(
                     self.insert_parameter_dialog)
-                self.graph_widgets[par_index].btn_edit_param.clicked.connect(
+                self.graph_widgets[par_index].btn_change_param.clicked.connect(
                     self.graph_widgets[par_index].change_global)
-                self.graph_widgets[par_index].btn_edit_param.clicked.connect(
-                    self.edit_parameter_dialog)
+                self.graph_widgets[par_index].btn_change_param.clicked.connect(
+                    self.change_parameter_dialog)
 
                 del list_of_t_r_p
 
@@ -924,7 +933,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             self.ps.close()
 
-    def edit_parameter(self):
+    def change_parameter(self):
         global curr_par, fit_par
         par_index = self.par.index(curr_par)
         user_input = self.ps.parameter.currentText()
@@ -933,6 +942,7 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 self.par_vals[self.par[par_index]]
             except KeyError:
+                self.logger.debug("Inputted parameter ({}) is not known.".format(user_input))
                 QtWidgets.QMessageBox.information(self, "Information",
                                                   "This parameter does not exist. Add to"
                                                   " view it.")
@@ -978,16 +988,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ps.btn_cancel.clicked.connect(self.ps.close)
 
     def append_parameter_dialog(self):
-        selected_option = 'append'
-        title = 'Append Parameter'
+        selected_option = "append"
+        title = "Append Parameter"
         self.add_parameter_dialog(selected_option, title)
 
     def insert_parameter_dialog(self):
-        selected_option = 'insert'
-        title = 'Insert Parameter'
+        selected_option = "insert"
+        title = "Insert Parameter"
         self.add_parameter_dialog(selected_option, title)
 
-    def edit_parameter_dialog(self):
+    def change_parameter_dialog(self):
         val = []
         for key in self.par_vals:
             if key in self.par:
@@ -995,10 +1005,10 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 val.append(key)
 
-        self.ps = ParamSpec(val, "Edit Parameter", self.logger)
+        self.ps = ParamSpec(val, "Change Parameter", self.logger)
         self.ps.show()
-        self.ps.btnOK.clicked.connect(self.edit_parameter)
-        self.ps.btnCancel.clicked.connect(self.ps.close)
+        self.ps.btn_ok.clicked.connect(self.change_parameter)
+        self.ps.btn_cancel.clicked.connect(self.ps.close)
 
     def progress_bar(self, cmd):
         progress = QtWidgets.QProgressDialog("Operation in progress...",
@@ -1007,17 +1017,16 @@ class MainWindow(QtWidgets.QMainWindow):
         progress.setMaximum(self.loops*1e6)
         progress.resize(500, 100)
         prev = 1
-        message = "Stopped"
         completed = int(prev * 1e6) / 2
-        status = 'running'
+        status = "running"
         progress.show()
         time.sleep(10)
-        while cmd.poll() is None and status == 'running':
-            with open(self.progress_path, 'r') as f:
+        while cmd.poll() is None and status == "running":
+            with open(self.progress_path, "r") as f:
                 data = f.readlines()
                 for each_line in data:
                     line = each_line.split(" ")
-                    if 'L:' in line[0].upper():
+                    if "L:" in line[0].upper():
                         count = line[0].split(":")
                         count = count[1].split("/")
                         if int(count[0]) > prev:
@@ -1029,7 +1038,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         else:
                             completed += 0.0001
                     elif "finish" in line[0].lower():
-                        status = 'finished'
+                        status = "finished"
                         progress.setValue(self.loops * 1e6)
                         message = each_line
                         break
@@ -1038,7 +1047,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 cmd.kill()
                 break
         progress.setValue(self.loops * 1e6)
-        QtWidgets.QMessageBox.information(self, "Information", message)
+        self.logger.debug("TiRiFiC finished and stopped")
+        QtWidgets.QMessageBox.information(self, "Information", "Stopped")
 
     def run_tirific(self):
         """Starts TiRiFiC
@@ -1051,11 +1061,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     gw.par_vals, gw.par, gw.unit_meas, gw.x_precision, gw.y_precision)
 
             tmp_file = []
-            with open(self.file_name, 'a') as f:
+            with open(self.file_name, "a") as f:
                 for each_line in self.data:
                     line_vals = each_line.split("=")
                     if len(line_vals) > 1:
-                        line_vals[0] = ''.join(line_vals[0].split())
+                        line_vals[0] = "".join(line_vals[0].split())
                         if line_vals[0] == "ACTION":
                             tmp_file.append("ACTION = 1\n")
                         elif line_vals[0] == "PROMPT":
@@ -1079,16 +1089,18 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 cmd = run(["tirific", "deffile=", self.file_name])
             except OSError:
+                self.logger.debug("TiRiFiC is not installed on the computer")
                 QtWidgets.QMessageBox.information(self, "Information",
                                                   "TiRiFiC is not installed or configured"
                                                   " properly on system.")
             else:
                 self.progress_path = str(self.file_name)
-                self.progress_path = self.progress_path.split('/')
-                self.progress_path[-1] = 'progress'
-                self.progress_path = '/'.join(self.progress_path)
+                self.progress_path = self.progress_path.split("/")
+                self.progress_path[-1] = "progress"
+                self.progress_path = "/".join(self.progress_path)
                 self.progress_bar(cmd)
         else:
+            self.logger.debug("Fit file is not in the same location as .def file")
             QtWidgets.QMessageBox.information(self, "Information",
                                               "Data cube ("+self.INSET+") specified at INSET"
                                               " doesn't exist in specified directory.")

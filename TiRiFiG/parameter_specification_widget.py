@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+#########################################################################################
+# Author: Samuel (samueltwum1@gmail.com) with MSc supervisors                           #
+# Copyright 2018 Samuel N. Twum                                                         #
+#                                                                                       #
+# MIT license - see LICENSE.txt for details                                             #
+#########################################################################################
+
 from PyQt5 import QtCore, QtWidgets
 
 

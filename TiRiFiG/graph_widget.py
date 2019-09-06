@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+#########################################################################################
+# Author: Samuel (samueltwum1@gmail.com) with MSc supervisors                           #
+# Copyright 2018 Samuel N. Twum                                                         #
+#                                                                                       #
+# MIT license - see LICENSE.txt for details                                             #
+#########################################################################################
+
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import style
@@ -108,6 +116,7 @@ class GraphWidget(QtWidgets.QWidget):
             self.ms_click[1] = event.ydata
             self.ms_release[0] = None
             self.ms_release[1] = None
+            self.logger.debug("Data has been selected: left-click")
 
         if event.dblclick and not event.xdata is None:
             self.ms_dbl_press[0] = event.xdata
@@ -159,6 +168,8 @@ class GraphWidget(QtWidgets.QWidget):
             self.ms_click[0] = None
             self.ms_click[1] = None
 
+            self.logger.debug("Data has been selected: double-click")
+
     def get_release(self, event):
         """Record x-y data when left mouse button is released
 
@@ -179,13 +190,15 @@ class GraphWidget(QtWidgets.QWidget):
             self.change_global()
             self.redo = []
 
-        # append the new point to the history if the last item in history differs
-        # from the new point
-        if not self.history_list[len(self.history_list)-1] == self.par_vals[:]:
-            self.history_list.append(self.par_vals[:])
+            # append the new point to the history if the last item in history differs
+            # from the new point
+            if not self.history_list[len(self.history_list)-1] == self.par_vals[:]:
+                self.history_list.append(self.par_vals[:])
 
-        self.ms_click[0] = None
-        self.ms_click[1] = None
+            self.ms_click[0] = None
+            self.ms_click[1] = None
+
+            self.logger.debug("Mouse button has been released")
 
     def get_motion(self, event):
         """Record x-y data when mouse is in motion
@@ -210,6 +223,8 @@ class GraphWidget(QtWidgets.QWidget):
                     self.ms_motion[0] = event.ydata
                 self.plot_func()
 
+                self.logger.debug("Data point is being moved")
+
     def undo_key(self):
         """Undo last action
 
@@ -226,6 +241,7 @@ class GraphWidget(QtWidgets.QWidget):
             self.key = "Yes"
             self.plot_func()
         else:
+            self.logger.info("There is no data point in history list for undo action")
             QtWidgets.QMessageBox.information(self, "Information", "History list is exhausted")
 
     def redo_key(self):
@@ -246,6 +262,7 @@ class GraphWidget(QtWidgets.QWidget):
             self.key = "Yes"
             self.plot_func()
         else:
+            self.logger.info("There is no data point in history list for redo action")
             QtWidgets.QMessageBox.information(self, "Information", "History list is exhausted")
 
     def first_plot(self):
