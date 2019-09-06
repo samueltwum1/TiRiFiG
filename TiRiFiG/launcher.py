@@ -15,7 +15,7 @@ import logging, sys, os
 
 from PyQt5 import QtCore, QtWidgets
 
-from tirig import MainWindow
+from .tirig import MainWindow
 
 
 def main():
