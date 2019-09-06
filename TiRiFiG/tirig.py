@@ -484,7 +484,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     lower_bound = min(self.par_vals[key]) - percentage_of_min_max_diff
                     upper_bound = max(self.par_vals[key]) + perc[entage_of_min_max_diff
                     # are the min/max values the same
-                    if np.subtract(max(self.par_vals[key]), min(self.par_vals[key]))==0:
+                    if max(self.par_vals[key]) == min(self.par_vals[key]):
                         self.y_scale[key] = [lower_bound/2, upper_bound*1.5]
                     else:
                         self.y_scale[key] = [lower_bound, upper_bound]
