@@ -22,8 +22,8 @@ def main():
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-    formatter = logging.Formatter('%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
-    file_handler = logging.FileHandler('TiRiFiG.log', mode='a')
+    formatter = logging.Formatter("%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p")
+    file_handler = logging.FileHandler("TiRiFiG.log", mode="a")
     file_handler.setFormatter(formatter)
 
     logger.addHandler(file_handler)
