@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #########################################################################################
 # Author: Samuel (samueltwum1@gmail.com) with MSc supervisors                           #
-# Copyright 2018 Samuel N. Twum                                                         #
+# Copyright 2019 Samuel N. Twum                                                         #
 #                                                                                       #
 # MIT license - see LICENSE.txt for details                                             #
 #########################################################################################
@@ -118,5 +118,5 @@ class ScaleManager(QtWidgets.QWidget):
             gw.x_scale = [self.x_min, self.x_max]
             gw.first_plot()
         self.close()
-        self.logger.debug("Scale successfully upgraded.")
+        # self.logger.debug("Scale successfully upgraded.")
         QtWidgets.QMessageBox.information(self, "Information", "Done!")

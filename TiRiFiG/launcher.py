@@ -15,7 +15,7 @@ import logging, sys, os
 
 from PyQt5 import QtCore, QtWidgets
 
-from .tirig import MainWindow
+from tirifig import MainWindow
 
 
 def main():
@@ -28,10 +28,10 @@ def main():
 
     logger.addHandler(file_handler)
 
-    logger.info("Log handling set up")
+    # logger.info("Log handling set up")
 
     app = QtWidgets.QApplication(sys.argv)
-    logger.info("Starting the GUI")
+    # logger.info("Starting the GUI")
     GUI = MainWindow(logger)
     GUI.show()
 
