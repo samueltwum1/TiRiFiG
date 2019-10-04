@@ -543,7 +543,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 text = text.split(",")
                 self.n_rows = int(text[0])
                 self.n_cols = int(text[1])
-                if (self.nrows * self.ncols) >= len(self.par):
+                if (self.n_rows * self.n_cols) >= len(self.par):
                     # clear the existing graph objects
                     item_count = self.scroll_grid_layout.count()
                     for i in range(item_count):
@@ -576,8 +576,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     del g_w_to_plot
 
                     counter = 0
-                    for i in range(self.nrows):
-                        for j in range(self.ncols):
+                    for i in range(self.n_rows):
+                        for j in range(self.n_cols):
                             self.scroll_grid_layout.addWidget(
                                 sorted_g_w_to_plot[counter], i, j)
                             # call the show method on the graphWidget object in order to
@@ -664,7 +664,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Information",
                                           "Changes successfully written to file")
 
-    def save_as(self, file_name, new_vals, search_key, unit_measurement, x_precision,
+    def save_aas(self, file_name, new_vals, search_key, unit_measurement, x_precision,
                y_precision):
         """Creates a new .def file with the specified file path
 
@@ -726,8 +726,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                                           os.getcwd(),
                                                           ".def Files (*.def)")
         for gw in self.graph_widgets:
-            self.save_as(file_name, gw.par_vals, gw.par, gw.unit_meas, gw.x_precision,
-                         gw.y_precision)
+            self.save_aas(file_name, gw.par_vals, gw.par, gw.unit_meas, gw.x_precision,
+                          gw.y_precision)
 
         # self.logger.info("Changes saved successfully to new file")
 
@@ -779,7 +779,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if ok:
 
             for gw in self.graph_widgets:
-                self.save_as(self.tmp_def_file.name, gw.par_vals, gw.par, gw.unit_meas,
+                self.save_aas(self.tmp_def_file.name, gw.par_vals, gw.par, gw.unit_meas,
                              gw.x_precision, gw.y_precision)
 
             if text:
@@ -876,8 +876,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 del list_of_t_r_p
 
-            self.nrows = self.scroll_grid_layout.rowCount()
-            self.ncols = self.scroll_grid_layout.columnCount()
+            self.n_rows = self.scroll_grid_layout.rowCount()
+            self.n_cols = self.scroll_grid_layout.columnCount()
             item_count = self.scroll_grid_layout.count()
             if selected_option == "add":
                 g_w_to_plot = [gw for gw in self.graph_widgets
@@ -887,17 +887,17 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.scroll_grid_layout.getItemPosition(last_item_index))
                 row_number = graph_widget_position[0]
                 column_number = graph_widget_position[1]
-                if column_number < self.ncols:
+                if column_number < self.n_cols:
                     self.scroll_grid_layout.addWidget(
                         g_w_to_plot, row_number, column_number + 1)
                 else:
-                    if row_number == self.nrows:
-                        self.nrows += 1 # does this even matter
+                    if row_number == self.n_rows:
+                        self.n_rows += 1 # does this even matter
                     self.scroll_grid_layout.addWidget(g_w_to_plot, row_number + 1, 0)
 
                 del g_w_to_plot
             else:
-                self.nrows += 1
+                self.n_rows += 1
 
                 for i in range(item_count):
                     widget_to_remove = self.scroll_grid_layout.itemAt(0).widget()
@@ -916,8 +916,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     del g_w_to_plot
 
                     counter = 0
-                    for i in range(self.nrows):
-                        for j in range(self.ncols):
+                    for i in range(self.n_rows):
+                        for j in range(self.n_cols):
                             self.scroll_grid_layout.addWidget(
                                 sorted_g_w_to_plot[counter], i, j)
                             # call the show method on the graphWidget object in order to
