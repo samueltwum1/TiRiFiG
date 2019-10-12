@@ -14,7 +14,7 @@ http://gigjozsa.github.io/tirific/
 
 """
 
-import os, subprocess, time, tempfile
+import os, re, shutil, signal, subprocess, time, tempfile
 from decimal import Decimal
 from math import ceil
 from subprocess import Popen as run
@@ -76,32 +76,50 @@ def _center(self):
     # top left of rectangle becomes top left of window centering it
     self.move(q_rect.topLeft())
 
+
 class TimerThread(Thread):
     """starts a thread and stops when the program closes"""
-    def __init__(self, event, func, prog_pid, tmp_file):
+    stopped = None
+    func = None
+    prog_pid = None
+    tmp_file = None
+    def_file = None
+
+    def __init__(self):
         super(TimerThread, self).__init__(name="TimerThread")
-        self.stopped = event
-        self.func = func
-        self.prog_pid = str(prog_pid)
-        self.tmp_file = tmp_file
+
+    def restore_file_name(self):
+        """Renames the def file to its original name
+        
+        Notes
+        -----
+        The save_aas function renames the deffile name to be the name of 
+        the temporary def file. This function is called when the open text
+        editor command is triggered. Despite the new file created, we still
+        want to keep the name of the original file in self.file_name
+        """
+        pass
 
     def run(self):
-        wait_period = 1 # time in seconds
+        wait_period = 0.2 # time in seconds
         while not self.stopped.wait(wait_period):
             proc1 = run(["ps", "ax"], stdout=subprocess.PIPE)
             proc2 = run(["grep", self.prog_pid], stdin=proc1.stdout,
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out = proc2.communicate()[0].split()
+            # update the viewgraph with edits from text file, else
             # stop thread if program is no longer running
             if (len(out) > 0) and (self.prog_pid == out[0]):
                 self.func()
             else:
                 self.stopped.set()
-                self.tmp_file.close() # the temp file will be deleted
+                os.remove(self.def_file)
+                shutil.move(self.tmp_file.name, self.def_file)
+                self.restore_file_name()
                 # self.logger.debug("Sync between graph and text file stopped")
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class MainWindow(QtWidgets.QMainWindow, TimerThread):
     run_count = 0
     key = "Yes"
     loops = 0
@@ -111,6 +129,7 @@ class MainWindow(QtWidgets.QMainWindow):
     tmp_def_file = tempfile.NamedTemporaryFile()
     progress_path = ""
     file_name = ""
+    original_name = ""
     graph_widgets = []
     scroll_width = 0; scroll_height = 0
     before = 0
@@ -236,6 +255,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pref_menu.addAction(self.win_spec)
 
     def quit_app(self):
+        # kill the text editor if it is running
+        # check if text editor was opened in program run time
+        if self.prog_pid:
+            proc1 = run(["ps", "ax"], stdout=subprocess.PIPE)
+            proc2 = run(["grep", self.prog_pid], stdin=proc1.stdout,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out = proc2.communicate()[0].split()
+            # update the viewgraph with edits from text file, else
+            # stop thread if program is no longer running
+            if (len(out) > 0) and (self.prog_pid == out[0]):
+                os.kill(int(self.prog_pid), signal.SIGKILL)
+        # wait a while to make the thread's run method to clean up
+        time.sleep(0.5)
         QtWidgets.qApp.quit()
 
     def clean_up(self):
@@ -297,6 +329,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                               "Empty/Invalid file specified")
             return
         else:
+            self.original_name = self.file_name
             return data
 
     def str_type(self, var):
@@ -773,33 +806,43 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.before = after
                 self.change_data(self.tmp_def_file.name)
 
+    def rename_file(self):
+        self.file_name = self.original_name
+
     def open_editor(self):
         text, ok = QtWidgets.QInputDialog.getText(self, "Text Editor Input Dialog",
                                                   "Enter text editor :")
         if ok:
-
             for gw in self.graph_widgets:
                 self.save_aas(self.tmp_def_file.name, gw.par_vals, gw.par, gw.unit_meas,
-                             gw.x_precision, gw.y_precision)
+                              gw.x_precision, gw.y_precision)
 
             if text:
                 program_name = str(text)
-                try:
-                    prog_pid = run([program_name, self.tmp_def_file.name]).pid
-                except OSError:
-                    # self.logger.debug("{} is not installed or configured.".format(program_name))
-                    QtWidgets.QMessageBox.information(self, "Information",
-                                                      "{} is not installed or configured"
-                                                      " properly on this system.".format(program_name))
-                else:
-                    QtWidgets.QMessageBox.information(self, "Information",
-                                                      "To see change in graph, save changes to the file")
-                    # assign current modified time of temporary def file to before
-                    self.before = os.stat(self.tmp_def_file.name).st_mtime
-                    stop_event = Event()
-                    timer_thread = TimerThread(stop_event, self.animate, prog_pid, self.tmp_def_file)
-                    timer_thread.start()
-                    # self.logger.debug("Sync between graph and text file started")
+                reply = QtWidgets.QMessageBox.information(self, "Information",
+                                                          "To see change in graph, save changes to the file")
+                if reply:
+                    try:
+                        prog_pid = run([program_name, self.tmp_def_file.name]).pid
+                    except OSError:
+                        # self.logger.debug("{} is not installed or configured.".format(program_name))
+                        QtWidgets.QMessageBox.information(self, "Information",
+                                                        "{} is not installed or configured"
+                                                        " properly on this system.".format(program_name))
+                    else:
+                        # assign current modified time of temporary def file to before
+                        self.before = os.stat(self.tmp_def_file.name).st_mtime
+                        stop_event = Event()
+                        # set the values of the inherited values from TimerThread
+                        self.stopped = stop_event
+                        self.func = self.animate
+                        self.prog_pid = str(prog_pid)
+                        self.tmp_file = self.tmp_def_file
+                        self.def_file = self.original_name
+                        self.restore_file_name = self.rename_file
+                        #start the thread
+                        self.start()
+                        # self.logger.debug("Sync between graph and text file started")
 
     def create_scale_manager(self):
         self.sm = ScaleManager(self.x_scale, self.graph_widgets, self.logger)
@@ -1021,6 +1064,7 @@ class MainWindow(QtWidgets.QMainWindow):
         progress.show()
         time.sleep(10)
         while cmd.poll() is None and status == "running":
+            # TODO 11/10/2019 (sam): investigate if it's better to tail the file
             with open(self.progress_path, "r") as f:
                 data = f.readlines()
                 for each_line in data:
@@ -1052,8 +1096,16 @@ class MainWindow(QtWidgets.QMainWindow):
     def run_tirific(self):
         """Starts TiRiFiC
         """
-        fits_file_path = os.getcwd()
-        fits_file_path = fits_file_path + "/" + self.INSET
+        # it's possible that the text file is still open when the user runs tirific
+        # in this case the original file name must be restored before tirific is called
+        if self.file_name != self.original_name:
+            os.remove(self.original_name)
+            shutil.copy(self.tmp_file.name, self.original_name)
+            self.rename_file()
+            
+        fits_file_path = self.file_name.split("/")
+        fits_file_path[-1] = self.INSET
+        fits_file_path = "/".join(fits_file_path)
         if os.path.isfile(fits_file_path):
             for gw in self.graph_widgets:
                 self.save_file(
@@ -1093,13 +1145,23 @@ class MainWindow(QtWidgets.QMainWindow):
                                                   "TiRiFiC is not installed or configured"
                                                   " properly on system.")
             else:
-                self.progress_path = str(self.file_name)
-                self.progress_path = self.progress_path.split("/")
-                self.progress_path[-1] = "progress"
-                self.progress_path = "/".join(self.progress_path)
+                regex = "^progress$"
+                list_of_files = []
+                # this may not be the best way to do this but it ensures the right file is used
+                # walk through all directories in home looking for files named progress. gather
+                # the list of all these files and return the latest file
+                for root, dirs, files in os.walk("/home"):
+                    for prog_file in files:
+                        if re.match(regex, prog_file):
+                            list_of_files.append(os.path.join(root, prog_file))
+
+                if list_of_files:
+                    self.progress_path = max(list_of_files, key=os.path.getctime)
+                else:
+                    raise IndexError("No progress file found")
                 self.progress_bar(cmd)
         else:
             # self.logger.debug("Fit file is not in the same location as .def file")
             QtWidgets.QMessageBox.information(self, "Information",
-                                              "Data cube ("+self.INSET+") specified at INSET"
-                                              " doesn't exist in specified directory.")
+                                              "Data cube ("+self.INSET+") specified at INSET parameter"
+                                              " doesn't exist in specified directory ("+fits_file_path+").")
