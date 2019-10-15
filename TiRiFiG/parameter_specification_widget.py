@@ -9,6 +9,32 @@
 from PyQt5 import QtCore, QtWidgets
 
 
+def _center(self):
+    """Centers the window
+
+    Parameters
+    ----------
+    self : QtWidgets.QWidget 
+        the current instance of the window being displayed
+
+    Notes
+    -----
+    The screen resolution is gotten from user's desktop and the center
+    point is figured out for which the window is placed
+    """
+    # geometry of the main window
+    q_rect = self.frameGeometry()
+
+    # center point of screen
+    centre_point = QtWidgets.QDesktopWidget().availableGeometry().center()
+
+    # move rectangle's center point to screen's center point
+    q_rect.moveCenter(centre_point)
+
+    # top left of rectangle becomes top left of window centering it
+    self.move(q_rect.topLeft())
+
+
 class ParamSpec(QtWidgets.QWidget):
 
     def __init__(self, par, window_title, logger):

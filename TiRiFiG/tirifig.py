@@ -14,9 +14,10 @@ http://gigjozsa.github.io/tirific/
 
 """
 
-import os, re, shutil, signal, subprocess, time, tempfile
+import os, re, shutil, signal, subprocess, sys, time, tempfile
 from decimal import Decimal
 from math import ceil
+from Queue import Queue
 from subprocess import Popen as run
 from threading import Thread, Event
 import numpy as np
@@ -25,6 +26,7 @@ from PyQt5 import QtCore, QtWidgets
 
 from graph_widget import GraphWidget
 from parameter_specification_widget import ParamSpec
+from progress_window import Progress, MyReceiver, WriteStream
 from scale_manager_widget import ScaleManager
 
 
@@ -51,36 +53,11 @@ fit_par = {"VROT":"km s-1",
            "DVRA":"km s-1 arcsec-1",
            "VRAD":"km s-1"}
 
-def _center(self):
-    """Centers the window
-
-    Parameters
-    ----------
-    self : QtWidgets.QWidget 
-        the current instance of the window being displayed
-
-    Notes
-    -----
-    The screen resolution is gotten from user's desktop and the center
-    point is figured out for which the window is placed
-    """
-    # geometry of the main window
-    q_rect = self.frameGeometry()
-
-    # center point of screen
-    centre_point = QtWidgets.QDesktopWidget().availableGeometry().center()
-
-    # move rectangle's center point to screen's center point
-    q_rect.moveCenter(centre_point)
-
-    # top left of rectangle becomes top left of window centering it
-    self.move(q_rect.topLeft())
-
 
 class TimerThread(Thread):
     """starts a thread and stops when the program closes"""
     stopped = None
-    func = None
+    func = lambda: None
     prog_pid = None
     tmp_file = None
     def_file = None
@@ -270,34 +247,34 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         time.sleep(0.5)
         QtWidgets.qApp.quit()
 
-    def clean_up(self):
+    # def clean_up(self):
 
-        # FIXME(Samuel 11-06-2018): Find a way to do this better
-        self.run_count = 0
-        self.key = "Yes"
-        self.n_cols = 1; self.n_rows = 4
-        self.INSET = "None"
-        self.par = ["VROT", "SBR", "INCL", "PA"]
-        self.unit_meas = ["km/s", "Jy km/s/sqarcs", "degrees", "degrees"]
-        # FIXME use Lib/tempfile.py to create temporary file
-        self.tmp_def_file = os.getcwd() + "/tmpDeffile.def"
-        self.file_name = ""
-        self.graph_widgets = []
-        self.scroll_width = 0; self.scroll_height = 0
-        self.before = 0
-        self.y_precision = 0
-        self.x_precision = 0
-        self.NUR = 0
-        self.data = []
-        self.par_vals = {}
-        self.history_list = {}
-        self.x_scale = [0, 0]
-        self.y_scale = {"VROT":[0, 0]}
-        self.ms_click = [-5]
-        self.ms_release = ["None"]
-        self.ms_motion = [-5]
+    #     # FIXME(Samuel 11-06-2018): Find a way to do this better
+    #     self.run_count = 0
+    #     self.key = "Yes"
+    #     self.n_cols = 1; self.n_rows = 4
+    #     self.INSET = "None"
+    #     self.par = ["VROT", "SBR", "INCL", "PA"]
+    #     self.unit_meas = ["km/s", "Jy km/s/sqarcs", "degrees", "degrees"]
+    #     # FIXME use Lib/tempfile.py to create temporary file
+    #     self.tmp_def_file = os.getcwd() + "/tmpDeffile.def"
+    #     self.file_name = ""
+    #     self.graph_widgets = []
+    #     self.scroll_width = 0; self.scroll_height = 0
+    #     self.before = 0
+    #     self.y_precision = 0
+    #     self.x_precision = 0
+    #     self.NUR = 0
+    #     self.data = []
+    #     self.par_vals = {}
+    #     self.history_list = {}
+    #     self.x_scale = [0, 0]
+    #     self.y_scale = {"VROT":[0, 0]}
+    #     self.ms_click = [-5]
+    #     self.ms_release = ["None"]
+    #     self.ms_motion = [-5]
 
-        self.init_ui()
+    #     self.init_ui()
 
     def get_data(self):
         """Loads data from specified .def file
@@ -371,7 +348,7 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         """
         dec_points = []
         # ensure values from list to are converted string
-        for idx, sci_num in enumerate(data):
+        for sci_num in data:
             sci_num = str(sci_num)       
             val = sci_num.split(".")
             # check val has decimal & fractional part and append 
@@ -555,14 +532,14 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
 
     def undo_command(self):
         global curr_par
-        for idx, gw in enumerate(self.graph_widgets):
+        for gw in self.graph_widgets:
             if gw.par == curr_par:
                 gw.undo_key()
                 break
 
     def redo_command(self):
         global curr_par
-        for idx, gw in enumerate(self.graph_widgets):
+        for gw in self.graph_widgets:
             if gw.par == curr_par:
                 gw.redo_key()
                 break
@@ -1052,47 +1029,6 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         self.ps.btn_ok.clicked.connect(self.change_parameter)
         self.ps.btn_cancel.clicked.connect(self.ps.close)
 
-    def progress_bar(self, cmd):
-        progress = QtWidgets.QProgressDialog("Operation in progress...",
-                                             "Cancel", 0, 100)
-        progress.setWindowModality(QtCore.Qt.WindowModal)
-        progress.setMaximum(self.loops*1e6)
-        progress.resize(500, 100)
-        prev = 1
-        completed = int(prev * 1e6) / 2
-        status = "running"
-        progress.show()
-        time.sleep(10)
-        while cmd.poll() is None and status == "running":
-            # TODO 11/10/2019 (sam): investigate if it's better to tail the file
-            with open(self.progress_path, "r") as f:
-                data = f.readlines()
-                for each_line in data:
-                    line = each_line.split(" ")
-                    if "L:" in line[0].upper():
-                        count = line[0].split(":")
-                        count = count[1].split("/")
-                        if int(count[0]) > prev:
-                            if int(count[0]) == self.loops:
-                                completed += 0.0001
-                            else:
-                                prev = int(count[0])
-                                completed = prev * 1e6
-                        else:
-                            completed += 0.0001
-                    elif "finish" in line[0].lower():
-                        status = "finished"
-                        progress.setValue(self.loops * 1e6)
-                        message = each_line
-                        break
-            progress.setValue(completed)
-            if progress.wasCanceled():
-                cmd.kill()
-                break
-        progress.setValue(self.loops * 1e6)
-        # self.logger.debug("TiRiFiC finished and stopped")
-        QtWidgets.QMessageBox.information(self, "Information", "Finished")
-
     def run_tirific(self):
         """Starts TiRiFiC
         """
@@ -1137,31 +1073,27 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
                 f.truncate()
                 for line in tmp_file:
                     f.write(line)
-            try:
-                cmd = run(["tirific", "deffile=", self.file_name])
-            except OSError:
-                # self.logger.debug("TiRiFiC is not installed on the computer")
-                QtWidgets.QMessageBox.information(self, "Information",
-                                                  "TiRiFiC is not installed or configured"
-                                                  " properly on system.")
-            else:
-                regex = "^progress$"
-                list_of_files = []
-                # this may not be the best way to do this but it ensures the right file is used
-                # walk through all directories in home looking for files named progress. gather
-                # the list of all these files and return the latest file
-                for root, dirs, files in os.walk("/home"):
-                    for prog_file in files:
-                        if re.match(regex, prog_file):
-                            list_of_files.append(os.path.join(root, prog_file))
 
-                if list_of_files:
-                    self.progress_path = max(list_of_files, key=os.path.getctime)
-                else:
-                    raise IndexError("No progress file found")
-                self.progress_bar(cmd)
+            # declare your variables with self otherwise your GUI wont show
+            # and your thread will be garbage collected: this will cause your
+            # program to be aborted since the thread will die
+
+            # create a queue and redirect stdout to this queue
+            self.queue = Queue()
+            sys.stdout = WriteStream(self.queue)
+            # make the progress window object
+            self.progress_dialog = Progress("TiRiFiC Progress", self.logger, self.file_name, self.loops)
+            self.progress_dialog.show()
+            # create thread that will listen on the other end of the queue and
+            # send text to the TextEdit obj
+            self.thread = QtCore.QThread()
+            self.my_receiver = MyReceiver(self.queue)
+            self.my_receiver.mysignal.connect(self.progress_dialog.append_text)
+            self.my_receiver.moveToThread(self.thread)
+            self.thread.started.connect(self.my_receiver.run)
+            self.thread.start()
         else:
             # self.logger.debug("Fit file is not in the same location as .def file")
             QtWidgets.QMessageBox.information(self, "Information",
                                               "Data cube ("+self.INSET+") specified at INSET parameter"
-                                              " doesn't exist in specified directory ("+fits_file_path+").")
+                                              " doesn't exist in specified directory ("+fits_file_path+").")       
