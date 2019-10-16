@@ -104,7 +104,6 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
     INSET = "None"
     par = ["VROT", "SBR", "INCL", "PA"]
     tmp_def_file = tempfile.NamedTemporaryFile()
-    progress_path = ""
     file_name = ""
     original_name = ""
     graph_widgets = []
@@ -1042,7 +1041,7 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         fits_file_path = self.file_name.split("/")
         fits_file_path[-1] = self.INSET
         fits_file_path = "/".join(fits_file_path)
-        if os.path.isfile(fits_file_path):
+        if (os.path.isfile(fits_file_path)) or (os.path.isfile(self.INSET)):
             for gw in self.graph_widgets:
                 self.save_file(
                     gw.par_vals, gw.par, gw.unit_meas, gw.x_precision, gw.y_precision)
@@ -1096,4 +1095,4 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
             # self.logger.debug("Fit file is not in the same location as .def file")
             QtWidgets.QMessageBox.information(self, "Information",
                                               "Data cube ("+self.INSET+") specified at INSET parameter"
-                                              " doesn't exist in specified directory ("+fits_file_path+").")       
+                                              " doesn't exist in specified directory (or "+fits_file_path+").")
