@@ -106,11 +106,12 @@ class Tirific(QObject):
                     break
                 if output:
                     output = output.strip()
-                    print output
+                    print(output)
                     # send data to the progress bar
                     # output looks like this 'L:1/1 I:15/5.0E+06 M:04/5.0E+06/145 P:Z0 ... \n'
                     data = output.split()
                     try:
+                        # sometimes data is an empty list
                         first_item = data[0]
                     except IndexError:
                         # self.logger.debug("Empty list from split")

@@ -16,8 +16,9 @@ http://gigjozsa.github.io/tirific/
 
 import os, re, shutil, signal, subprocess, sys, time, tempfile
 from decimal import Decimal
+from functools import partial
 from math import ceil
-from Queue import Queue
+from queue import Queue
 from subprocess import Popen as run
 from threading import Thread, Event
 import numpy as np
@@ -97,33 +98,36 @@ class TimerThread(Thread):
 
 
 class MainWindow(QtWidgets.QMainWindow, TimerThread):
-    run_count = 0
-    key = "Yes"
-    loops = 0
-    n_cols = 1; n_rows = 4
-    INSET = "None"
-    par = ["VROT", "SBR", "INCL", "PA"]
-    tmp_def_file = tempfile.NamedTemporaryFile()
-    file_name = ""
-    original_name = ""
-    graph_widgets = []
-    scroll_width = 0; scroll_height = 0
-    before = 0
-    y_precision = {}
-    x_precision = 0
-    NUR = 0
-    data = []
-    par_vals = {}
-    history_list = {}
-    x_scale = [0, 0]
-    y_scale = {"VROT":[0, 0]}
-    ms_click = [-5]
-    ms_release = ["None"]
-    ms_motion = [-5]
+    """Main window of the running app"""
 
     def __init__(self, logger):
         super(MainWindow, self).__init__()
         self.logger = logger
+        self.run_count = 0
+        self.key = "Yes"
+        self.loops = 0
+        self.n_cols = 1
+        self.n_rows = 4
+        self.INSET = "None"
+        self.par = ["VROT", "SBR", "INCL", "PA"]
+        self.tmp_def_file = tempfile.NamedTemporaryFile()
+        self.file_name = ""
+        self.original_name = ""
+        self.graph_widgets = []
+        self.scroll_width = 0
+        self.scroll_height = 0
+        self.before = 0
+        self.y_precision = {}
+        self.x_precision = 0
+        self.NUR = 0
+        self.data = []
+        self.par_vals = {}
+        self.history_list = {}
+        self.x_scale = [0, 0]
+        self.y_scale = {"VROT":[0, 0]}
+        self.ms_click = [-5]
+        self.ms_release = ["None"]
+        self.ms_motion = [-5]
         self.init_ui()
         # self.logger.info("Window initialisation completed without errors")
 
@@ -245,6 +249,10 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         # wait a while to make the thread's run method to clean up
         time.sleep(0.5)
         QtWidgets.qApp.quit()
+
+    def change_global(self, gw_in_focus):
+        global curr_par
+        curr_par = gw_in_focus
 
     # def clean_up(self):
 
@@ -406,7 +414,7 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
                 else:
                     if (len(par_vals) > 0 and not self.str_type(par_vals[0]) == "str" and
                             not self.str_type(par_vals[-1]) == "str" and
-                            not self.str_type(par_vals[len(par_vals) / 2]) == "str"):
+                            not self.str_type(par_vals[len(par_vals) // 2]) == "str"):
                         if (len(par_vals) == self.NUR or line_vals[0].upper() in
                                 fit_par.keys()):
                             if line_vals[0].upper() == "RADI":
@@ -432,11 +440,14 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         data = self.get_data()
         try:
             self.get_parameter_values(data)
-        except:
+        except Exception as inst:
             # self.logger.debug("The tilted-ring parameters could not be retrieved from the {}"
-                            #  .format(self.file_name))
+            #                  .format(self.file_name)
             QtWidgets.QMessageBox.information(self, "Information",
-                                              "Tilted-ring parameters not retrieved")
+                                              "Tilted-ring parameters not retrieved\n"
+                                              "{0}\n {1}\n \n{2}".format(type(inst),
+                                                                         inst.args,
+                                                                         inst))
         else:
             self.data = data
             if self.run_count > 0:
@@ -506,13 +517,14 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
                                                       self.history_list[key][:],
                                                       self.key, self.x_precision,
                                                       self.y_precision[key],
-                                                      self.logger))
+                                                      self.logger,
+                                                      self.change_global))
                     self.graph_widgets[-1].btn_add_param.clicked.connect(
-                        self.graph_widgets[-1].change_global)
+                        partial(self.change_global, key))
                     self.graph_widgets[-1].btn_add_param.clicked.connect(
                         self.insert_parameter_dialog)
                     self.graph_widgets[-1].btn_edit_param.clicked.connect(
-                        self.graph_widgets[-1].change_global)
+                        partial(self.change_global, key))
                     self.graph_widgets[-1].btn_edit_param.clicked.connect(
                         self.change_parameter_dialog)
                     # TODO we should also probably set the minimum size for the scroll layout
@@ -816,7 +828,7 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
                         self.tmp_file = self.tmp_def_file
                         self.def_file = self.original_name
                         self.restore_file_name = self.rename_file
-                        #start the thread
+                        # start the thread
                         self.start()
                         # self.logger.debug("Sync between graph and text file started")
 
@@ -881,15 +893,16 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
                                                       "Yes",
                                                       self.x_precision,
                                                       1,
-                                                      self.logger))
+                                                      self.logger,
+                                                      self.change_global))
                 self.graph_widgets[par_index].setMinimumSize(self.scroll_width/2,
                                                              self.scroll_height/2)
                 self.graph_widgets[par_index].btn_add_param.clicked.connect(
-                    self.graph_widgets[par_index].change_global)
+                    partial(self.change_global, tilted_ring_par))
                 self.graph_widgets[par_index].btn_add_param.clicked.connect(
                     self.insert_parameter_dialog)
                 self.graph_widgets[par_index].btn_edit_param.clicked.connect(
-                    self.graph_widgets[par_index].change_global)
+                    partial(self.change_global, tilted_ring_par))
                 self.graph_widgets[par_index].btn_edit_param.clicked.connect(
                     self.change_parameter_dialog)
 

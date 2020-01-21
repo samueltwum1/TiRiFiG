@@ -19,15 +19,9 @@ matplotlib.use("qt5Agg")
 
 class GraphWidget(QtWidgets.QWidget):
     """plotting window for each tilted ring parameter"""
-    redo = []
-    ms_click = [None, None]
-    ms_release = [None, None]
-    ms_motion = [None]
-    ms_dbl_press = [None, None]
-    last_value = 0
 
     def __init__(self, x_scale, y_scale, unit_meas, par, par_vals, par_val_radi,
-                 history_list, key, x_precision, y_precision, logger):
+                 history_list, key, x_precision, y_precision, logger, change_global):
         super(GraphWidget, self).__init__()
         self.x_scale = x_scale
         self.y_scale = y_scale
@@ -40,6 +34,14 @@ class GraphWidget(QtWidgets.QWidget):
         self.x_precision = x_precision
         self.y_precision = y_precision
         self.logger = logger
+        self.change_global = change_global
+
+        self.redo = []
+        self.ms_click = [None, None]
+        self.ms_release = [None, None]
+        self.ms_motion = [None]
+        self.ms_dbl_press = [None, None]
+        self.last_value = 0
 
         # Grid Layout
         grid = QtWidgets.QGridLayout()
@@ -85,15 +87,8 @@ class GraphWidget(QtWidgets.QWidget):
 
         self.first_plot()
 
-    def change_global(self, val=None):
-        global curr_par
-        if val == None:
-            curr_par = None
-        else:
-            curr_par = self.par
-
     def _almost_equal(self, a, b, rel_tol=5e-2, abs_tol=0.0):
-        '''Takes two values return true if they are almost equal'''
+        """Takes two values return true if they are almost equal"""
         diff = abs(b - a)
         return (diff <= abs(rel_tol * b)) or (diff <= abs_tol)
 
@@ -128,8 +123,8 @@ class GraphWidget(QtWidgets.QWidget):
                 if text:
                     new_val = float(str(text))
                     for idx, radi_val in enumerate(self.par_val_radi):
-                        if ((self.ms_dbl_press[0] < (self.par_val_radi[idx])+3) and
-                            (self.ms_dbl_press[0] > (self.par_val_radi[idx])-3)):
+                        if ((self.ms_dbl_press[0] < (radi_val)+3) and
+                            (self.ms_dbl_press[0] > (radi_val)-3)):
 
                             self.par_vals[idx] = new_val
                             bottom, top = self.ax.get_ylim()
@@ -187,7 +182,7 @@ class GraphWidget(QtWidgets.QWidget):
         if not event.ydata is None:
             self.ms_release[0] = event.xdata
             self.ms_release[1] = event.ydata
-            self.change_global()
+            self.change_global(self.par)
             self.redo = []
 
             # append the new point to the history if the last item in history differs
@@ -309,8 +304,8 @@ class GraphWidget(QtWidgets.QWidget):
         # point is clicked
         else:
             for idx, radi_val in enumerate(self.par_val_radi):
-                if ((self.ms_click[0] < (self.par_val_radi[idx]) + 3) and
-                    (self.ms_click[0] > (self.par_val_radi[idx]) - 3) and
+                if ((self.ms_click[0] < (radi_val) + 3) and
+                    (self.ms_click[0] > (radi_val) - 3) and
                     (self.ms_release[0] is None)):
                     dy = self.ms_motion[0] - self.par_vals[idx]
                     self.par_vals[idx] += dy
