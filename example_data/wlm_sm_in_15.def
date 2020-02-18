@@ -3,7 +3,7 @@ ACTION = 1
 PROMPT = 0
 NCORES= 20
 
-INSET= wlm_60.fits
+INSET= /home/sam/gitRepos/github/academic/TiRiFiG/example_data/wlm_60.fits
 OUTSET=
 OUTCUBUP=  10000000.0
 

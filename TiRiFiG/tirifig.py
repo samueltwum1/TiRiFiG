@@ -316,30 +316,6 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
             self.original_name = self.file_name
             return data
 
-    def str_type(self, var):
-        """Determines the data type of a variable
-
-        ParametersError reading selected paramater file
-        ----------
-        var : int|float|string
-            variable holding the values
-
-        Returns
-        -------
-        data type : string
-            value returned is either int, float or str
-        """
-        # why are you putting this in a try-except block
-        try:
-            if int(var) == float(var):
-                return "int"
-        except:
-            try:
-                float(var)
-                return "float"
-            except:
-                return "str"
-
     def num_precision(self, data):
         """Determines the highest floating point precision of data points
 
@@ -390,7 +366,6 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         # TODO 26/08/19 (Sam): will be nice to use regex for the search
 
         global fit_par
-
         # I need NUR value first that's why it's in a different loop
         for i in data:
             line_vals = i.split("=")
@@ -412,11 +387,8 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
                 elif line_vals[0].upper() == "LOOPS":
                     self.loops = int(par_vals[0])
                 else:
-                    if (len(par_vals) > 0 and not self.str_type(par_vals[0]) == "str" and
-                            not self.str_type(par_vals[-1]) == "str" and
-                            not self.str_type(par_vals[len(par_vals) // 2]) == "str"):
-                        if (len(par_vals) == self.NUR or line_vals[0].upper() in
-                                fit_par.keys()):
+                    if par_vals:
+                        if len(par_vals) == self.NUR or line_vals[0].upper() in fit_par.keys():
                             if line_vals[0].upper() == "RADI":
                                 self.x_precision = self.num_precision(par_vals[:])
                             else:
@@ -443,11 +415,14 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         except Exception as inst:
             # self.logger.debug("The tilted-ring parameters could not be retrieved from the {}"
             #                  .format(self.file_name)
-            QtWidgets.QMessageBox.information(self, "Information",
-                                              "Tilted-ring parameters not retrieved\n"
-                                              "{0}\n {1}\n \n{2}".format(type(inst),
-                                                                         inst.args,
-                                                                         inst))
+            msgbox = QtWidgets.QMessageBox(self)
+            msgbox.setDetailedText(format(inst))
+            msgbox.setStandardButtons(QtWidgets.QMessageBox.Close)
+            msgbox.setText("An error occurred while retrieving the values of the tilted-ring parameters")
+            msgbox.setWindowTitle('Tilted-ring parameter retrieval failed!')
+            msgbox.exec_()
+            self.quit_app()
+
         else:
             self.data = data
             if self.run_count > 0:
@@ -472,74 +447,82 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
                 self.scroll_width = self.scroll_area_content.width()
                 self.scroll_height = self.scroll_area_content.height()
 
+                self.history_list.clear()
+
                 # make a dict to save the graph widgets to be plotted
                 # note that this approach will require another loop.
                 # Not ideal but it gets the job done for now.
                 g_w_to_plot = {}
                 # ensure there are the same points for parameters as there are for RADI as
                 # specified in NUR parameter
+                error = False
                 for key, val in self.par_vals.items():
                     diff = self.NUR - len(val)
-                    if key == "RADI": #use this implementation in other diff checkers
-                        if diff == self.NUR:
-                            for j in np.arange(0.0, (int(diff) * 40.0), 40):
-                                self.par_vals[key].append(j)
-                        elif diff > 0 and diff < self.NUR:
-                            for j in range(int(diff)):
-                                self.par_vals[key].append(self.par_vals[key][-1] + 40.0)
+                    if diff != 0:
+                        msgbox = QtWidgets.QMessageBox(self)
+                        msgbox.setDetailedText("{0} should have same number of values as"
+                                               " specified in NUR: {1} != {2}\n"
+                                               "values: {3}"
+                                               .format(key, len(val), self.NUR, val))
+                        msgbox.setStandardButtons(QtWidgets.QMessageBox.Close)
+                        msgbox.setText("Incomplete values specified in .def file for tilted-ring parameters")
+                        msgbox.setWindowTitle('Operation failed!')
+                        msgbox.exec_()
+                        error = True
+                        break
+
+                    if key == "RADI":
                         continue
-                    else:
-                        if diff == self.NUR:
-                            for j in range(int(diff)):
-                                self.par_vals[key].append(0.0)
-                        elif diff > 0 and diff < self.NUR:
-                            for j in range(int(diff)):
-                                self.par_vals[key].append(val[-1])
 
-                    self.history_list.clear()
-                    self.history_list[key] = [self.par_vals[key][:]]
-
-                    min_max_diff = max(self.par_vals[key]) - min(self.par_vals[key])
-                    percentage_of_min_max_diff = 0.1 * min_max_diff
-                    lower_bound = min(self.par_vals[key]) - percentage_of_min_max_diff
-                    upper_bound = max(self.par_vals[key]) + percentage_of_min_max_diff
-                    if (max(self.par_vals[key]) == min(self.par_vals[key])):
-                        self.y_scale[key] = [lower_bound/2, upper_bound*1.5]
-                    else:
-                        self.y_scale[key] = [lower_bound, upper_bound]
-                    
-                    unit = fit_par[key] if key in fit_par.keys() else ""
-                    self.graph_widgets.append(GraphWidget(self.x_scale,
-                                                      self.y_scale[key][:],
-                                                      unit, key,
-                                                      self.par_vals[key][:],
-                                                      self.par_vals["RADI"][:],
-                                                      self.history_list[key][:],
-                                                      self.key, self.x_precision,
-                                                      self.y_precision[key],
-                                                      self.logger,
-                                                      self.change_global))
-                    self.graph_widgets[-1].btn_add_param.clicked.connect(
-                        partial(self.change_global, key))
-                    self.graph_widgets[-1].btn_add_param.clicked.connect(
-                        self.insert_parameter_dialog)
-                    self.graph_widgets[-1].btn_edit_param.clicked.connect(
-                        partial(self.change_global, key))
-                    self.graph_widgets[-1].btn_edit_param.clicked.connect(
-                        self.change_parameter_dialog)
-                    # TODO we should also probably set the minimum size for the scroll layout
-                    self.graph_widgets[-1].setMinimumSize(self.scroll_width/2, self.scroll_height/2)
                     if key in self.par:
+
+                        self.history_list[key] = [self.par_vals[key][:]]
+
+                        min_max_diff = max(self.par_vals[key]) - min(self.par_vals[key])
+                        percentage_of_min_max_diff = 0.1 * min_max_diff
+                        lower_bound = min(self.par_vals[key]) - percentage_of_min_max_diff
+                        upper_bound = max(self.par_vals[key]) + percentage_of_min_max_diff
+                        if (max(self.par_vals[key]) == min(self.par_vals[key])):
+                            self.y_scale[key] = [lower_bound/2, upper_bound*1.5]
+                        else:
+                            self.y_scale[key] = [lower_bound, upper_bound]
+
+                        unit = fit_par[key] if key in fit_par.keys() else ""
+                        self.graph_widgets.append(GraphWidget(self.x_scale,
+                                                        self.y_scale[key][:],
+                                                        unit, key,
+                                                        self.par_vals[key][:],
+                                                        self.par_vals["RADI"][:],
+                                                        self.history_list[key][:],
+                                                        self.key, self.x_precision,
+                                                        self.y_precision[key],
+                                                        self.logger,
+                                                        self.change_global))
+                        self.graph_widgets[-1].btn_add_param.clicked.connect(
+                            partial(self.change_global, key))
+                        self.graph_widgets[-1].btn_add_param.clicked.connect(
+                            self.insert_parameter_dialog)
+                        self.graph_widgets[-1].btn_edit_param.clicked.connect(
+                            partial(self.change_global, key))
+                        self.graph_widgets[-1].btn_edit_param.clicked.connect(
+                            self.change_parameter_dialog)
+                        # set the minimum size for the graph widget
+                        self.graph_widgets[-1].setMinimumSize(
+                                                              self.scroll_width/2,
+                                                              self.scroll_height/2)
+                        # TODO we should also probably set the minimum size for the scroll layout
                         g_w_to_plot[key] = self.graph_widgets[-1]
 
-                # retrieve the values in order and build a list of ordered key-value pairs
-                ordered_dict_items = [(key, g_w_to_plot[key]) for key in self.par]
-                for idx, items in enumerate(ordered_dict_items):
-                    graph_widget = items[1] # what does 1 represent
-                    self.scroll_grid_layout.addWidget(graph_widget, idx, 0)
-                del g_w_to_plot, ordered_dict_items
-                self.run_count += 1
-                # self.logger.debug("The tilted-ring parameters retrieved from successfully")
+                if not error:
+                    # retrieve the values in order and build a list of ordered key-value pairs
+                    ordered_dict_items = [(key, g_w_to_plot[key]) for key in self.par]
+                    g_w_instance = 1
+                    for idx, items in enumerate(ordered_dict_items):
+                        graph_widget = items[g_w_instance]
+                        self.scroll_grid_layout.addWidget(graph_widget, idx, 0)
+                    del g_w_to_plot, ordered_dict_items
+                    self.run_count += 1
+                    # self.logger.debug("The tilted-ring parameters retrieved from successfully")
 
     def undo_command(self):
         global curr_par
@@ -746,6 +729,7 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
         file_name = QtWidgets.QFileDialog.getSaveFileName(self, "Save .def file as ",
                                                           os.getcwd(),
                                                           ".def Files (*.def)")
+        file_name = file_name[0]
         for gw in self.graph_widgets:
             self.save_aas(file_name, gw.par_vals, gw.par, gw.unit_meas, gw.x_precision,
                           gw.y_precision)
@@ -1013,7 +997,6 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
             else:
                 val.append(key)
         self.ps = ParamSpec(val, title, self.logger)
-        self.ps.add_parameter = self.add_parameter
         self.ps.show()
         self.ps.btn_ok.clicked.connect(self.add_parameter)
         self.ps.btn_cancel.clicked.connect(self.ps.close)
@@ -1104,6 +1087,7 @@ class MainWindow(QtWidgets.QMainWindow, TimerThread):
             self.my_receiver.moveToThread(self.thread)
             self.thread.started.connect(self.my_receiver.run)
             self.thread.start()
+            # self.progress_dialog.
         else:
             # self.logger.debug("Fit file is not in the same location as .def file")
             QtWidgets.QMessageBox.information(self, "Information",

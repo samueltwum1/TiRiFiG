@@ -6,7 +6,7 @@
 # MIT license - see LICENSE.txt for details                                             #
 #########################################################################################
 
-import os, re, sys, time
+import os, re, sys, signal, subprocess, time
 from subprocess import Popen as run, PIPE
 from PyQt5 import QtWidgets, Qt
 from PyQt5.QtCore import QObject, pyqtSlot, pyqtSignal, QThread
@@ -19,6 +19,7 @@ source: https://stackoverflow.com/questions/21071448/redirecting-stdout-and-stde
 """
 
 process = None
+prog_pid = None
 
 def _center(self):
     """Centers the window
@@ -87,9 +88,10 @@ class Tirific(QObject):
 
     @pyqtSlot()
     def run(self):
-        global process
+        global process, prog_pid
         try:
             process = run(["tirific", "deffile=", self.file_name], stdout=PIPE)
+            prog_pid = str(process.pid)
         except OSError:
             # self.logger.debug("TiRiFiC is not installed on the computer")
             QtWidgets.QMessageBox.information(self, "Information",
@@ -97,7 +99,6 @@ class Tirific(QObject):
                                               " properly on system.")
         else:
             self.progress.setMaximum(self.loops*1e6)
-            self.progress.resize(500, 100)
             prev = 1
             completed = int(prev * 1e6) / 2
             while True:
@@ -106,13 +107,13 @@ class Tirific(QObject):
                     break
                 if output:
                     output = output.strip()
-                    print(output)
                     # send data to the progress bar
                     # output looks like this 'L:1/1 I:15/5.0E+06 M:04/5.0E+06/145 P:Z0 ... \n'
                     data = output.split()
                     try:
                         # sometimes data is an empty list
                         first_item = data[0]
+                        first_item = first_item.decode('utf-8')
                     except IndexError:
                         # self.logger.debug("Empty list from split")
                         pass
@@ -169,6 +170,21 @@ class Progress(QtWidgets.QWidget):
 
         _center(self)
         self.setFocus()
+
+    # def closeEvent(self, event):
+    #     print("Close event happened")
+    #     global prog_pid
+    #     if prog_pid:
+    #         proc1 = run(["ps", "ax"], stdout=subprocess.PIPE)
+    #         proc2 = run(["grep", prog_pid], stdin=proc1.stdout,
+    #                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    #         out = proc2.communicate()[0].split()
+    #         # out = out.decode('utf-8')
+    #         # update the viewgraph with edits from text file, else
+    #         # stop thread if program is no longer running
+    #         if (len(out) > 0) and (prog_pid == out[0]):
+    #             os.kill(int(prog_pid), signal.SIGKILL)
+    #         event.accept()
     
     @pyqtSlot(str)
     def append_text(self, text):
