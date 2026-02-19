@@ -7,13 +7,14 @@ dist
 *.egg-info
 *.egg
 /doc/_build
+*.DS_Store
 
 # Unit test / coverage reports
 .coverage
 .tox
 nosetests.xml
 .noseids
-
+.DS_Store
 # Developer tools
 .ropeproject
 .vscode/
